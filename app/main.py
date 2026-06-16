@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 
-from app.models import CreateItemDto, Item
+from app.models import CreateItemDto, Item, UpdateItemDto
 
 # Creating the FastAPI app is the rough equivalent of `const app =
 # express()` in Express - one object that everything else (routes,
@@ -102,5 +102,36 @@ def delete_item(item_id: str) -> dict:
         if item.id == item_id:
             items.remove(item)
             return {"message": f"Removed {item.name} ({item.category})"}
+
+    raise HTTPException(status_code=404, detail=f"No item with id {item_id} found")
+
+
+# UpdateItemDto has every field optional, so a client only needs to
+# send what's actually changing - e.g. {"status": "low_stock"} on its
+# own, leaving name and category untouched.
+#
+# .model_dump(exclude_unset=True) is the key piece: it converts
+# UpdateItemDto back into a plain dict, but ONLY including fields the
+# caller actually sent. Without exclude_unset, every omitted field
+# would come through as None and overwrite real data with nothing -
+# the exact bug a naive "just copy every field across" update would
+# introduce. Roughly the same problem `{ ...item, ...req.body }` in JS
+# avoids by spreading, just solved on the Pydantic side instead.
+@app.patch("/items/{item_id}")
+def update_item(item_id: str, updates: UpdateItemDto) -> Item:
+    for item in items:
+        if item.id == item_id:
+            update_data = updates.model_dump(exclude_unset=True)
+
+            # setattr(item, field, value) sets an attribute by name
+            # given as a string - the Python equivalent of `item[field]
+            # = value` in JS, useful here because the field name isn't
+            # known in advance; it's whatever the caller happened to
+            # include.
+            for field, value in update_data.items():
+                setattr(item, field, value)
+
+            item.updated_at = datetime.now().isoformat()
+            return item
 
     raise HTTPException(status_code=404, detail=f"No item with id {item_id} found")
