@@ -63,6 +63,22 @@ def list_items() -> list[Item]:
     return items
 
 
+# Same {item_id} path parameter pattern as delete_item() and
+# update_item() below - and the same "loop through items, return on
+# match, raise HTTPException if nothing matched" shape too. That's now
+# three endpoints repeating this exact lookup. Worth keeping an eye on,
+# the same way pick_from_matches() in cupboard.py only got extracted
+# once the duplication between add_item() and remove_item() became
+# obvious - not necessarily something to fix the moment it appears.
+@app.get("/items/{item_id}")
+def get_item(item_id: str) -> Item:
+    for item in items:
+        if item.id == item_id:
+            return item
+
+    raise HTTPException(status_code=404, detail=f"No item with id {item_id} found")
+
+
 # `item: CreateItemDto` as a parameter is the key piece here - FastAPI
 # sees that type hint, reads the incoming request body as JSON, and
 # validates it against CreateItemDto BEFORE this function body even

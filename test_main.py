@@ -80,6 +80,21 @@ def test_list_items_returns_seeded_items():
     assert names == ["Milk", "Bread"]
 
 
+def test_get_item_returns_the_matching_item():
+    response = client.get("/items/milk-id")
+    assert response.status_code == 200
+
+    item = response.json()
+    assert item["id"] == "milk-id"
+    assert item["name"] == "Milk"
+
+
+def test_get_item_returns_404_for_unknown_id():
+    response = client.get("/items/does-not-exist")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No item with id does-not-exist found"}
+
+
 def test_create_item_adds_to_the_list():
     response = client.post(
         "/items",
