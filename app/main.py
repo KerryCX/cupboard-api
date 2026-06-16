@@ -5,9 +5,12 @@ The actual running FastAPI application - this is the file uvicorn
 points at to start the server.
 """
 
+from datetime import datetime
+from uuid import uuid4
+
 from fastapi import FastAPI
 
-from app.models import Item
+from app.models import CreateItemDto, Item
 
 # Creating the FastAPI app is the rough equivalent of `const app =
 # express()` in Express - one object that everything else (routes,
@@ -26,25 +29,27 @@ def read_root():
     return {"message": "Cupboard API is running"}
 
 
-# Standing in for a real store for now, just to prove Item (from
-# models.py) actually works once something tries to return it from a
-# route - this gets replaced with something real in the next step.
-fake_items = [
+# A real, mutable list standing in for a database for now - playing
+# the same role `items` plays inside cupboard.py, just living in
+# server memory instead of a JSON file. Restarting the server resets
+# this list back to these two seed entries, the same way cupboard.py
+# would lose everything without save_items() to persist it.
+items: list[Item] = [
     Item(
-        id="1",
+        id=str(uuid4()),
         name="Milk",
         category="Dairy",
         status="out_of_stock",
-        created_at="2026-06-16T00:00:00",
-        updated_at="2026-06-16T00:00:00",
+        created_at=datetime.now().isoformat(),
+        updated_at=datetime.now().isoformat(),
     ),
     Item(
-        id="2",
+        id=str(uuid4()),
         name="Bread",
         category="Bakery",
         status="low_stock",
-        created_at="2026-06-16T00:00:00",
-        updated_at="2026-06-16T00:00:00",
+        created_at=datetime.now().isoformat(),
+        updated_at=datetime.now().isoformat(),
     ),
 ]
 
@@ -52,9 +57,28 @@ fake_items = [
 # The `-> list[Item]` return type annotation isn't just documentation
 # here, the way it would be in plain Python - FastAPI actually reads
 # it and uses it to validate and shape the JSON response, enforced at
-# runtime, not just checked by an editor. The closest TS equivalent
-# would be a function return type that the framework itself enforces,
-# not just the compiler.
+# runtime, not just checked by an editor.
 @app.get("/items")
 def list_items() -> list[Item]:
-    return fake_items
+    return items
+
+
+# `item: CreateItemDto` as a parameter is the key piece here - FastAPI
+# sees that type hint, reads the incoming request body as JSON, and
+# validates it against CreateItemDto BEFORE this function body even
+# runs. This is the exact same validation you tested by hand ages ago
+# (CreateItemDto(name="Milk", category="Dairy")) - it's just firing on
+# real HTTP requests now instead of inside a Python shell.
+@app.post("/items")
+def create_item(item: CreateItemDto) -> Item:
+    now = datetime.now().isoformat()
+    new_item = Item(
+        id=str(uuid4()),
+        name=item.name,
+        category=item.category,
+        status=item.status,
+        created_at=now,
+        updated_at=now,
+    )
+    items.append(new_item)
+    return new_item
