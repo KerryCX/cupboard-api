@@ -8,7 +8,7 @@ points at to start the server.
 from datetime import datetime
 from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from app.models import CreateItemDto, Item
 
@@ -82,3 +82,25 @@ def create_item(item: CreateItemDto) -> Item:
     )
     items.append(new_item)
     return new_item
+
+
+# {item_id} in the route path is a path parameter - FastAPI matches it
+# to the `item_id` function parameter automatically. The same idea as
+# Express's `router.delete('/items/:id', ...)` then reading `req.params.id`,
+# just declared through the function signature instead of a separate
+# params object.
+#
+# Unlike create_item()'s validation, "does this id actually exist?"
+# isn't something Pydantic can check for you - there's no type that
+# means "a real item in the list." That's what HTTPException is for:
+# raising it stops the function immediately and sends back whatever
+# status_code and detail you give it, the rough equivalent of
+# `res.status(404).json({ detail: '...' })` in Express.
+@app.delete("/items/{item_id}")
+def delete_item(item_id: str) -> dict:
+    for item in items:
+        if item.id == item_id:
+            items.remove(item)
+            return {"message": f"Removed {item.name} ({item.category})"}
+
+    raise HTTPException(status_code=404, detail=f"No item with id {item_id} found")
